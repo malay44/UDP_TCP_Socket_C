@@ -1,8 +1,3 @@
-/* CSD 304 Computer Networks, Fall 2016
-   Lab 2, client
-   Team: 
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

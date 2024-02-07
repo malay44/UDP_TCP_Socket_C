@@ -60,10 +60,16 @@ int main(int argc, char * argv[]){
   else
     printf("Client connected.\n");
   
-  /* main loop: get and send lines of text */
+  /* main loop: get and send lines of text and recive from message from server */
   while (fgets(buf, sizeof(buf), stdin)) {
     buf[MAX_LINE-1] = '\0';
     len = strlen(buf) + 1;
     send(s, buf, len, 0);
+    if (recv(s, buf, sizeof(buf), 0) == 0) {
+      printf("Server closed connection.\n");
+      close(s);
+      exit(1);
+    }
+    fputs(buf, stdout);
   }
 }

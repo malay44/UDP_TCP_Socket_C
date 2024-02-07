@@ -51,16 +51,13 @@ int main() {
       exit(1);
     }
     printf("Server Listening.\n");
-    while (len = recv(new_s, buf, sizeof(buf), 0)) {
+    while ((len = recv(new_s, buf, sizeof(buf), 0))){
+      if (strncmp(buf, "GET", 3) == 0) {
+        printf("GET request received.\n");
+        char content[] = "hello world\n\0";
+        send(new_s, content, sizeof(content), 0);
+      }
       fputs(buf, stdout);
-      
-      fputs(buf, stdin);
-      char bvuf[MAX_LINE]; // Declare and initialize the variable bvuf
-      send(new_s, bvuf, len, 0); // Fix the syntax error by adding a comma between len and 0
-      
-      // Send a message from server to client
-      char serverMsg[MAX_LINE] = "Hello from server!";
-      send(new_s, serverMsg, strlen(serverMsg), 0);
     }
     close(new_s);
   }
