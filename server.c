@@ -54,8 +54,15 @@ int main() {
     while ((len = recv(new_s, buf, sizeof(buf), 0))){
       if (strncmp(buf, "GET", 3) == 0) {
         printf("GET request received.\n");
-        char content[] = "hello world\n\0";
-        send(new_s, content, sizeof(content), 0);
+        FILE *fp = fopen("sample.txt", "r");
+        if (fp == NULL) {
+          perror("Error opening file");
+          send(new_s, "Not Found", 9, 0);
+        }
+        char content[MAX_LINE];
+        while (fgets(content, sizeof(content), fp) != NULL) {
+          send(new_s, content, strlen(content), 0);
+        }
       }
       fputs(buf, stdout);
     }
