@@ -101,31 +101,31 @@ int main(int argc, char *argv[])
       file_size = atoi(buf);
       printf("File size: %d\n", file_size);
       int size_received = 0;
-      // while(file_size > 0)
-      // {
-      //   recv(s, buf, sizeof(buf), 0);
-      //   int len = strlen(buf);
-      //   file_size -= len;
-      //   size_received += len;
-      //   fputs(buf, fp);
-      //   fflush(fp);
-      //   // Print progress
-      //   printf("Received %ld bytes. Remaining: %ld bytes     \r", (long)size_received, (long)file_size);
-      //   fflush(stdout); // Flush stdout to ensure the message is printed immediately
-      // }
-      while ((n = read(s, buf, MAX_LINE - 1)) > 0)
+      while(file_size > 0)
       {
+        recv(s, buf, sizeof(buf), 0);
+        int len = strlen(buf);
+        file_size -= len;
+        size_received += len;
         fputs(buf, fp);
         fflush(fp);
-        file_size -= len;
-        size_received += n;
-        printf("Received %d bytes. Remaining: %d bytes     \r", size_received, file_size - size_received);
-        fflush(stdout);
-        if (buf[n - 1] == '\n')
-        {
-          break;
-        }
+        // Print progress
+        printf("Received %ld bytes. Remaining: %ld bytes     \r", (long)size_received, (long)file_size);
+        fflush(stdout); // Flush stdout to ensure the message is printed immediately
       }
+      // while ((n = read(s, buf, MAX_LINE - 1)) > 0)
+      // {
+      //   fputs(buf, fp);
+      //   fflush(fp);
+      //   file_size -= len;
+      //   size_received += n;
+      //   printf("Received %d bytes. Remaining: %d bytes     \r", size_received, file_size - size_received);
+      //   fflush(stdout);
+      //   if (buf[n - 1] == '\n')
+      //   {
+      //     break;
+      //   }
+      // }
 
       fclose(fp);
       printf("File size: %d\n", file_size);
