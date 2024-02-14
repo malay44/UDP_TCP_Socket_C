@@ -113,7 +113,6 @@ int main(int argc, char *argv[])
           select(0, NULL, NULL, NULL, &delay); // Non-blocking delay
           bzero(buf, sizeof(buf));
         }
-        fseek(fp, 0L, SEEK_SET);
       }
       fputs(buf, stdout);
       bzero(buf, sizeof(buf));
