@@ -25,8 +25,12 @@ int main(int argc, char *argv[])
   char c;
   int file_size = 0;
   int n;
+  char filename[MAX_LINE] = "sample.txt";
+  struct timeval delay;
+  delay.tv_sec = 0; // Delay in seconds
+  delay.tv_usec = 300;
 
-  while ((c = getopt(argc, argv, "p:h:")) != -1)
+  while ((c = getopt(argc, argv, "p:h:f:")) != -1)
   {
     switch (c)
     {
@@ -35,6 +39,9 @@ int main(int argc, char *argv[])
       break;
     case 'h':
       host = optarg;
+      break;
+    case 'f':
+      strcpy(filename, optarg);
       break;
     default:
       usage();
@@ -80,7 +87,7 @@ int main(int argc, char *argv[])
     exit(1);
   }
   else
-    printf("Client connected.\n");
+    printf("Client connected.\nClient will receive file of name: %s\n", filename);
 
   /* main loop: get and send lines of text and receive from message from server */
   while (fgets(buf, sizeof(buf), stdin))
@@ -88,8 +95,13 @@ int main(int argc, char *argv[])
     buf[MAX_LINE - 1] = '\0';
     len = strlen(buf) + 1;
     send(s, buf, len, 0);
-    if (strncmp(buf, "GET", 3) == 0)
+    if (strcmp(buf, "GET\n") == 0)
     {
+      // send file name
+      select(0, NULL, NULL, NULL, &delay);
+      printf("Requesting file name: %s\n", filename);
+      send(s, filename, strlen(filename) + 1, 0);
+      printf("File name sent.\n");
       FILE *fp = fopen("response.txt", "w");
       if (fp == NULL)
       {
@@ -97,8 +109,12 @@ int main(int argc, char *argv[])
         exit(1);
       }
       recv(s, buf, sizeof(buf), 0);
-      printf("File size: %s\n", buf);
       file_size = atoi(buf);
+      if (file_size == 0)
+      {
+        printf("File not found.\n");
+        continue;
+      }
       printf("File size: %d\n", file_size);
       int size_received = 0;
       while(file_size > 0)
@@ -109,8 +125,7 @@ int main(int argc, char *argv[])
         size_received += len;
         fputs(buf, fp);
         fflush(fp);
-        // Print progress
-        printf("Received %ld bytes. Remaining: %ld bytes     \r", (long)size_received, (long)file_size);
+        printf("Remaining: %ld bytes     \r", (long)file_size);
         fflush(stdout); // Flush stdout to ensure the message is printed immediately
       }
       // while ((n = read(s, buf, MAX_LINE - 1)) > 0)
@@ -140,5 +155,6 @@ void usage(void)
   printf("Usage:\n");
   printf(" -p <Port>\n");
   printf(" -h <Host Address>\n"); // Corrected option description
+  printf(" -f <File Name>\n");
   exit(8);
 }

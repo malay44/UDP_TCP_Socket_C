@@ -28,16 +28,14 @@ int main(int argc, char *argv[])
   struct timeval delay;
   delay.tv_sec = 0; // Delay in seconds
   delay.tv_usec = 300;
+  int file_found = 1;
 
-  while ((c = getopt(argc, argv, "p:f:")) != -1)
+  while ((c = getopt(argc, argv, "p:")) != -1)
   {
     switch (c)
     {
     case 'p':
       port = atoi(optarg);
-      break;
-    case 'f':
-      strcpy(filename, optarg);
       break;
     default:
       usage();
@@ -60,10 +58,9 @@ int main(int argc, char *argv[])
 
   inet_ntop(AF_INET, &(sin.sin_addr), str, INET_ADDRSTRLEN);
   printf(
-      "Server is using address %s and port %d.\nServer will share file:- %s\n",
+      "Server is using address %s and port %d.\n",
       str,
-      port,
-      filename);
+      port);
 
   if ((bind(s, (struct sockaddr *)&sin, sizeof(sin))) < 0)
   {
@@ -86,14 +83,25 @@ int main(int argc, char *argv[])
     printf("Server Listening.\n");
     while ((len = recv(new_s, buf, sizeof(buf), 0)))
     {
-      if (strncmp(buf, "GET", 3) == 0)
+      if (strcmp(buf, "GET\n") == 0)
       {
-        printf("GET request received.\n");
+        // get file name
+        recv(new_s, filename, sizeof(filename), 0);
+        printf("GET request received for %s.\n", filename);
         FILE *fp = fopen(filename, "r");
         if (fp == NULL)
         {
           perror("Error opening file");
-          send(new_s, "Not Found", 9, 0);
+          file_found = 0;
+        }else
+        {
+          file_found = 1;
+        }
+        if (file_found != 1)
+        {
+          printf("File not found.\n");
+          send(new_s, "0", 2, 0);
+          continue;
         }
         fseek(fp, 0L, SEEK_END);
         int file_size = ftell(fp);
@@ -127,6 +135,5 @@ void usage(void)
 {
   printf("Usage:\n");
   printf(" -p <Port>\n");
-  printf(" -f <File Name>\n");
   exit(8);
 }
