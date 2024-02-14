@@ -92,11 +92,11 @@ int main(int argc, char *argv[])
   /* main loop: get and send lines of text and receive from message from server */
   send(s, "GET\n\0", 7, 0);
   // send file name
-  select(0, NULL, NULL, NULL, &delay);
-  printf("Requesting file name: %s\n", filename);
+  usleep(100);
+  printf("Requesting file: %s\n", filename);
   send(s, filename, strlen(filename) + 1, 0);
   printf("File name sent.\n");
-  FILE *fp = fopen("response.txt", "w");
+  FILE *fp = fopen("response.txt", "wb");
   if (fp == NULL)
   {
     perror("Error opening file");
@@ -110,35 +110,23 @@ int main(int argc, char *argv[])
     exit(1);
   }
   printf("File size: %d\n", file_size);
-  int size_received = 0;
+  ssize_t size_received = 0;
+  ssize_t recvLen = 0;
+  
   while (file_size > 0)
   {
-    recv(s, buf, sizeof(buf), 0);
-    int len = strlen(buf);
-    file_size -= len;
-    size_received += len;
-    fputs(buf, fp);
+    recvLen = recv(s, buf, sizeof(buf), 0);
+    file_size -= recvLen;
+    size_received += recvLen;
+    fwrite(buf, 1, recvLen, fp);
     fflush(fp);
     printf("Remaining: %ld bytes     \r", (long)file_size);
     fflush(stdout); // Flush stdout to ensure the message is printed immediately
   }
-  // while ((n = read(s, buf, MAX_LINE - 1)) > 0)
-  // {
-  //   fputs(buf, fp);
-  //   fflush(fp);
-  //   file_size -= len;
-  //   size_received += n;
-  //   printf("Received %d bytes. Remaining: %d bytes     \r", size_received, file_size - size_received);
-  //   fflush(stdout);
-  //   if (buf[n - 1] == '\n')
-  //   {
-  //     break;
-  //   }
-  // }
 
   fclose(fp);
   printf("File size: %d\n", file_size);
-  printf("File received of length %d.\n", size_received);
+  printf("File received of length %zd.\n", size_received);
 }
 
 void usage(void)

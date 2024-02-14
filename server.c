@@ -25,9 +25,6 @@ int main(int argc, char *argv[])
   int port = SERVER_PORT;
   char filename[MAX_LINE] = "sample.txt";
   char c;
-  struct timeval delay;
-  delay.tv_sec = 0; // Delay in seconds
-  delay.tv_usec = 300;
   int file_found = 1;
 
   while ((c = getopt(argc, argv, "p:")) != -1)
@@ -88,7 +85,7 @@ int main(int argc, char *argv[])
         // get file name
         recv(new_s, filename, sizeof(filename), 0);
         printf("GET request received for %s.\n", filename);
-        FILE *fp = fopen(filename, "r");
+        FILE *fp = fopen(filename, "rb");
         if (fp == NULL)
         {
           perror("Error opening file");
@@ -103,26 +100,23 @@ int main(int argc, char *argv[])
           send(new_s, "0", 2, 0);
           continue;
         }
-        fseek(fp, 0L, SEEK_END);
+        // get file size
+        fseek(fp, 0, SEEK_END);
         int file_size = ftell(fp);
-        fseek(fp, 0L, SEEK_SET);
+        fseek(fp, 0, SEEK_SET);
         char file_size_str[10];
         sprintf(file_size_str, "%d", file_size);
         printf("File size: %s\n", file_size_str);
         send(new_s, file_size_str, strlen(file_size_str) + 1, 0);
-        select(0, NULL, NULL, NULL, &delay); // Non-blocking delay
+        usleep(1000);
         bzero(buf, sizeof(buf));
-        while (fgets(buf, sizeof(buf), fp))
+        size_t bytesRead;
+        while ((bytesRead = fread(buf, 1, sizeof(buf), fp)) > 0)
         {
-          send(new_s, buf, strlen(buf) + 1, 0);
-          struct timeval delay;
-          delay.tv_sec = 0; // Delay in seconds
-          delay.tv_usec = 300;
-          select(0, NULL, NULL, NULL, &delay); // Non-blocking delay
-          bzero(buf, sizeof(buf));
+          send(new_s, buf, bytesRead, 0);
         }
+        fclose(fp);
       }
-      fputs(buf, stdout);
       bzero(buf, sizeof(buf));
     }
     close(new_s);
