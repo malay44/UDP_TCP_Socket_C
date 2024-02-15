@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
   sin.sin_port = htons(server_port);
 
   /* active open */
-  if ((s = socket(PF_INET, SOCK_STREAM, 0)) < 0)
+  if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
   {
     perror("simplex-talk: socket");
     exit(1);
@@ -80,42 +80,55 @@ int main(int argc, char *argv[])
   else
     printf("Client created socket.\n");
 
-  if (connect(s, (struct sockaddr *)&sin, sizeof(sin)) < 0)
-  {
-    perror("simplex-talk: connect");
-    close(s);
-    exit(1);
-  }
-  else
-    printf("Client connected.\nClient will receive file of name: %s\n", filename);
-
-  /* main loop: get and send lines of text and receive from message from server */
-  send(s, "GET\n\0", 7, 0);
-  // send file name
+  /* Requesting the file */
+  sendto(s, "GET\n\0", 5, 0, (struct sockaddr *)&sin, sizeof(sin));
   usleep(100);
   printf("Requesting file: %s\n", filename);
-  send(s, filename, strlen(filename) + 1, 0);
+  sendto(s, filename, strlen(filename) + 1, 0, (struct sockaddr *)&sin, sizeof(sin));
   printf("File name sent.\n");
+
   FILE *fp = fopen("response.txt", "wb");
   if (fp == NULL)
   {
     perror("Error opening file");
     exit(1);
   }
-  recv(s, buf, sizeof(buf), 0);
-  file_size = atoi(buf);
-  if (file_size == 0)
-  {
-    printf("File not found.\n");
-    exit(1);
-  }
-  printf("File size: %d\n", file_size);
+
   ssize_t size_received = 0;
-  ssize_t recvLen = 0;
-  
+  socklen_t sin_len = sizeof(sin);
+
+  while (1)
+  {
+    ssize_t recvLen = recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr *)&sin, &sin_len);
+    if (recvLen < 0)
+    {
+      perror("recvfrom");
+      exit(1);
+    }
+
+    if (strcmp(buf, "0") == 0)
+    {
+      printf("File not found.\n");
+      exit(1);
+    }
+    else if (strcmp(buf, "0") != 0)
+    {
+      // File size received
+      file_size = atoi(buf);
+      printf("File size: %d\n", file_size);
+      break;
+    }
+  }
+
   while (file_size > 0)
   {
-    recvLen = recv(s, buf, sizeof(buf), 0);
+    ssize_t recvLen = recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr *)&sin, &sin_len);
+    if (recvLen < 0)
+    {
+      perror("recvfrom");
+      exit(1);
+    }
+
     file_size -= recvLen;
     size_received += recvLen;
     fwrite(buf, 1, recvLen, fp);
@@ -125,7 +138,6 @@ int main(int argc, char *argv[])
   }
 
   fclose(fp);
-  printf("File size: %d\n", file_size);
   printf("File received of length %zd.\n", size_received);
 }
 
@@ -133,7 +145,8 @@ void usage(void)
 {
   printf("Usage:\n");
   printf(" -p <Port>\n");
-  printf(" -h <Host Address>\n"); // Corrected option description
+  printf(" -h <Host Address>\n");
   printf(" -f <File Name>\n");
+  printf("Example: gcc client.c -o client && ./client -h 0.0.0.0 -p 3000 -f sample.txt\n");
   exit(8);
 }

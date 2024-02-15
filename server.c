@@ -10,7 +10,6 @@
 #include <arpa/inet.h>
 
 #define SERVER_PORT 5433
-#define MAX_PENDING 5
 #define MAX_LINE 256
 
 void usage(void);
@@ -18,9 +17,10 @@ void usage(void);
 int main(int argc, char *argv[])
 {
   struct sockaddr_in sin;
+  struct sockaddr_in client_addr;
   char buf[MAX_LINE];
   socklen_t len;
-  int s, new_s;
+  int s;
   char str[INET_ADDRSTRLEN];
   int port = SERVER_PORT;
   char filename[MAX_LINE] = "sample.txt";
@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
   sin.sin_port = htons(port);
 
   /* setup passive open */
-  if ((s = socket(PF_INET, SOCK_STREAM, 0)) < 0)
+  if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
   {
     perror("simplex-talk: socket");
     exit(1);
@@ -67,59 +67,59 @@ int main(int argc, char *argv[])
   else
     printf("Server bind done.\n");
 
-  listen(s, MAX_PENDING);
-
-  /* wait for connection, then receive and print text */
+  /* wait for data from clients, then receive and respond */
   while (1)
   {
-    if ((new_s = accept(s, (struct sockaddr *)&sin, &len)) < 0)
+    len = sizeof(client_addr);
+    printf("Server Listening.\n");
+    if (recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr *)&client_addr, &len) < 0)
     {
-      perror("simplex-talk: accept");
+      perror("recvfrom");
       exit(1);
     }
-    printf("Server Listening.\n");
-    while ((len = recv(new_s, buf, sizeof(buf), 0)))
+
+    if (strcmp(buf, "GET\n") == 0)
     {
-      if (strcmp(buf, "GET\n") == 0)
+      // get file name
+      if (recvfrom(s, filename, sizeof(filename), 0, (struct sockaddr *)&client_addr, &len) < 0)
       {
-        // get file name
-        recv(new_s, filename, sizeof(filename), 0);
-        printf("GET request received for %s.\n", filename);
-        FILE *fp = fopen(filename, "rb");
-        if (fp == NULL)
-        {
-          perror("Error opening file");
-          file_found = 0;
-        }else
-        {
-          file_found = 1;
-        }
-        if (file_found != 1)
-        {
-          printf("File not found.\n");
-          send(new_s, "0", 2, 0);
-          continue;
-        }
-        // get file size
-        fseek(fp, 0, SEEK_END);
-        int file_size = ftell(fp);
-        fseek(fp, 0, SEEK_SET);
-        char file_size_str[10];
-        sprintf(file_size_str, "%d", file_size);
-        printf("File size: %s\n", file_size_str);
-        send(new_s, file_size_str, strlen(file_size_str) + 1, 0);
-        usleep(1000);
-        bzero(buf, sizeof(buf));
-        size_t bytesRead;
-        while ((bytesRead = fread(buf, 1, sizeof(buf), fp)) > 0)
-        {
-          send(new_s, buf, bytesRead, 0);
-        }
-        fclose(fp);
+        perror("recvfrom");
+        exit(1);
       }
+      printf("GET request received for %s.\n", filename);
+      FILE *fp = fopen(filename, "rb");
+      if (fp == NULL)
+      {
+        perror("Error opening file");
+        file_found = 0;
+      }else
+      {
+        file_found = 1;
+      }
+      if (file_found != 1)
+      {
+        printf("File not found.\n");
+        sendto(s, "0", 2, 0, (struct sockaddr *)&client_addr, len);
+        continue;
+      }
+      // get file size
+      fseek(fp, 0, SEEK_END);
+      int file_size = ftell(fp);
+      fseek(fp, 0, SEEK_SET);
+      char file_size_str[10];
+      sprintf(file_size_str, "%d", file_size);
+      printf("File size: %s\n", file_size_str);
+      sendto(s, file_size_str, strlen(file_size_str) + 1, 0, (struct sockaddr *)&client_addr, len);
+      usleep(1000);
       bzero(buf, sizeof(buf));
+      size_t bytesRead;
+      while ((bytesRead = fread(buf, 1, sizeof(buf), fp)) > 0)
+      {
+        sendto(s, buf, bytesRead, 0, (struct sockaddr *)&client_addr, len);
+      }
+      fclose(fp);
     }
-    close(new_s);
+    bzero(buf, sizeof(buf));
   }
   close(s);
   return 0;
@@ -129,5 +129,6 @@ void usage(void)
 {
   printf("Usage:\n");
   printf(" -p <Port>\n");
+  printf("Example: gcc server.c -o server && ./server -p 3000\n");
   exit(8);
 }
