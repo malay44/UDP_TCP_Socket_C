@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
       ssize_t size_sent = 0;
       while ((bytes_read = fread(buf, 1, sizeof(buf), fp)) > 0)
       {
-        usleep(1600);
+        usleep(95);
         sendto(s, buf, bytes_read, 0, (struct sockaddr *)&client_addr, client_addr_len);
         size_sent += bytes_read;
         printf("Server: Sent %ld bytes\r", size_sent);
