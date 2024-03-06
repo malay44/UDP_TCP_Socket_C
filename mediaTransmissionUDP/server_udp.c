@@ -13,31 +13,72 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
 #define SERVER_PORT 5432
 #define BUF_SIZE 4096
 
+struct ThreadArgs
+{
+  struct sockaddr_storage client_addr;
+  socklen_t client_addr_len;
+};
+
+void *handle_client(void *arg)
+{
+  struct ThreadArgs *args = (struct ThreadArgs *)arg;
+  struct sockaddr_storage client_addr = args->client_addr;
+  socklen_t client_addr_len = args->client_addr_len;
+
+  char clientIP[INET_ADDRSTRLEN];
+  int client_socket;
+  char buf[BUF_SIZE];
+
+  inet_ntop(client_addr.ss_family,
+            &(((struct sockaddr_in *)&client_addr)->sin_addr),
+            clientIP, INET_ADDRSTRLEN);
+
+  printf("Server %d: Got connection from %s\n", pthread_self(), clientIP);
+  if ((client_socket = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+  {
+    perror("server: socket");
+    exit(1);
+  }
+  printf("Server %d: New Socket Created for client %s.\n", pthread_self(), clientIP);
+
+  printf("Server %d: Sending file to client\n", pthread_self());
+  size_t bytes_read;
+  FILE *fp = fopen("streamable.mp4", "rb");
+  if (fp == NULL)
+  {
+    perror("Error opening file");
+    exit(1);
+  }
+  ssize_t size_sent = 0;
+  while ((bytes_read = fread(buf, 1, sizeof(buf), fp)) > 0)
+  {
+    usleep(95);
+    sendto(client_socket, buf, bytes_read, 0, (struct sockaddr *)&client_addr, client_addr_len);
+    size_sent += bytes_read;
+    printf("Server %d: Sent %ld bytes\r", pthread_self(), size_sent);
+  }
+  printf("Server %d: File sent of size: %ld\n", pthread_self(), size_sent);
+  fclose(fp);
+  close(client_socket);
+  memset(buf, 0, sizeof(buf));
+}
+
 int main(int argc, char *argv[])
 {
   struct sockaddr_in sin;
-  struct sockaddr_storage client_addr;
   char clientIP[INET_ADDRSTRLEN]; /* For IPv4 addresses */
-  socklen_t client_addr_len;
   char buf[BUF_SIZE];
   int len;
   int s;
   char *host;
   struct hostent *hp;
 
-  /* Declarations for file(s) to be sent
-     ...
-  */
-
-  /* For inserting delays, use nanosleep()
-     struct timespec ... */
-
-  /* To get filename from commandline */
-  /* if (argc==...) {} */
+  printf("Server process id: %d\n", getpid());
 
   /* Create a socket */
   if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
@@ -75,54 +116,42 @@ int main(int argc, char *argv[])
   }
   else
   {
-    /* Add code to parse IPv6 addresses */
-    inet_ntop(AF_INET, &(sin.sin_addr), clientIP, INET_ADDRSTRLEN);
+    // Parse the binary IP address to a human-readable form
+    inet_ntop(AF_INET, &(sin.sin_addr), clientIP, INET_ADDRSTRLEN); // clientIP var is used to store the IP address of the server over here.
     printf("Server is listening at address %s:%d\n", clientIP, SERVER_PORT);
   }
 
   printf("Client needs to send \"GET\" to receive the file %s\n", argv[1]);
 
-  client_addr_len = sizeof(client_addr);
-
-  /* Receive messages from clients*/
-  while ((len = recvfrom(s, buf, sizeof(buf), 0,
-                        (struct sockaddr *)&client_addr, &client_addr_len)))
+  while (1)
   {
-
-    inet_ntop(client_addr.ss_family,
-              &(((struct sockaddr_in *)&client_addr)->sin_addr),
-              clientIP, INET_ADDRSTRLEN);
-
-    printf("Server got message from %s: %s [%d bytes]\n", clientIP, buf, len);
-
-    // send hello message to client
-    sendto(s, "Hello from server", 18, 0, (struct sockaddr *)&client_addr, client_addr_len);
-
-    /* Send to client */
-    /* Add code to send file if the incoming message is GET */
+    struct sockaddr_storage client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+    memset(buf, 0, sizeof(buf));
+    /* Receive messages from clients*/
     printf("Server Listening.\n");
-
+    if ((len = recvfrom(s, buf, sizeof(buf), 0,
+                        (struct sockaddr *)&client_addr, &client_addr_len)) < 0)
+    {
+      perror("Main Server: recvfrom");
+      exit(1);
+    }
     if (strcmp(buf, "GET\n") == 0)
     {
-      printf("Server: Sending file to client\n");
-      size_t bytes_read;
-      FILE *fp = fopen("streamable_output.mp4", "rb");
-      if (fp == NULL)
+      int s = socket(AF_INET, SOCK_DGRAM, 0);
+      struct ThreadArgs *args = (struct ThreadArgs *)malloc(sizeof(struct ThreadArgs));
+      args->client_addr = client_addr;
+      args->client_addr_len = client_addr_len;
+      pthread_t tid;
+      if (pthread_create(&tid, NULL, handle_client, (void *)args) != 0)
       {
-        perror("Error opening file");
+        perror("pthread_create");
         exit(1);
       }
-      ssize_t size_sent = 0;
-      while ((bytes_read = fread(buf, 1, sizeof(buf), fp)) > 0)
-      {
-        usleep(95);
-        sendto(s, buf, bytes_read, 0, (struct sockaddr *)&client_addr, client_addr_len);
-        size_sent += bytes_read;
-        printf("Server: Sent %ld bytes\r", size_sent);
-      }
-      printf("Server: File sent of size: %ld\n", size_sent);
-      fclose(fp);
-    } else {
+      pthread_detach(tid);
+    }
+    else
+    {
       printf("Server: Invalid request\n");
     }
     memset(buf, 0, sizeof(buf));

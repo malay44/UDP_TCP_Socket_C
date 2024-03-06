@@ -4,5 +4,15 @@
 # Ignore files with no extension
 *.out
 
+# Ignore all video/audio files
+*.[aA][vV][iI]
+*.[mM][pP]3
+*.[mM][pP]4
+*.[wW][mM][aA]
+*.[fF][lL][aA][cC]
+*.[mM][kK][vV]
+*.[mM][oO][vV]
+*.[wW][aA][vV]
+
 # Ignore .DS_Store files
 .DS_Store

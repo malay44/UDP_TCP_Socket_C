@@ -86,9 +86,9 @@ int main(int argc, char *argv[])
     /* Add code to receive unlimited data and either display the data
        or if specified by the user, store it in the specified file.
        Instead of recv(), use recvfrom() call for receiving data */
-    // print message from server
-    recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr *)&sin, &len);
-    printf("Server says: %s\n", buf);
+    // // print message from server
+    // recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr *)&sin, &len);
+    // printf("Server says: %s\n", buf);
     ssize_t size_received = 0;
     socklen_t sin_len = sizeof(sin);
     while (1)
