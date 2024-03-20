@@ -57,7 +57,7 @@ void *handle_client(void *arg)
   ssize_t size_sent = 0;
   while ((bytes_read = fread(buf, 1, sizeof(buf), fp)) > 0)
   {
-    usleep(95);
+    usleep(300);
     sendto(client_socket, buf, bytes_read, 0, (struct sockaddr *)&client_addr, client_addr_len);
     size_sent += bytes_read;
     printf("Server %d: Sent %ld bytes\r", pthread_self(), size_sent);

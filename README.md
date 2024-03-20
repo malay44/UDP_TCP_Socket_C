@@ -1,3 +1,7 @@
+# UDP Video Streaming
+
+- Uses pthreads for handling multiple clients concurrently.
+
 ## Commands 
 - `ffmpeg -i sample_video.mp4 -f mpegts streamable_output.mp4` for converting a video to a streamable format.
 
