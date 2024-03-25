@@ -11,9 +11,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
-
-#define SERVER_PORT 5432
-#define BUF_SIZE 4096
+#include "constants.h"
 
 int main(int argc, char *argv[])
 {
@@ -22,6 +20,7 @@ int main(int argc, char *argv[])
     struct hostent *hp;
     struct sockaddr_in sin;
     char *host;
+    char *filename;
     char buf[BUF_SIZE];
     int s;
     int len;
@@ -38,7 +37,8 @@ int main(int argc, char *argv[])
 
     if (argc == 3)
     {
-        fp = fopen(argv[2], "wb");
+        filename = argv[2];
+        fp = fopen(filename, "wb");
         if (fp == NULL)
         {
             fprintf(stderr, "Error opening output file\n");
