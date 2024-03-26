@@ -16,15 +16,15 @@
 #include <pthread.h>
 #include "constants.h"
 
-struct ThreadArgs
+typedef struct
 {
     struct sockaddr_storage client_addr;
     socklen_t client_addr_len;
-};
+} ThreadArgs;
 
 void *handle_client(void *arg)
 {
-    struct ThreadArgs *args = (struct ThreadArgs *)arg;
+    ThreadArgs *args = (ThreadArgs *)arg;
     struct sockaddr_storage client_addr = args->client_addr;
     socklen_t client_addr_len = args->client_addr_len;
 
@@ -134,10 +134,22 @@ int main(int argc, char *argv[])
             perror("Main Server: recvfrom");
             exit(1);
         }
+        FileRequest *fileRequest = (FileRequest *)buf;
+
+        if (DEBUG)
+        {
+            printf("Server: Received %d bytes\n", len);
+            printf("Server: size of FileRequest: %ld\n", sizeof(FileRequest));
+            printf("Server: fileRequest->type: %hhu\n", fileRequest->type);
+            printf("Server: fileRequest->filename_size: %hhu\n", fileRequest->filename_size);
+            printf("Server: fileRequest->filename: %s\n", fileRequest->filename);
+        }
+
+        // old code
         if (strcmp(buf, "GET\n") == 0)
         {
             int s = socket(AF_INET, SOCK_DGRAM, 0);
-            struct ThreadArgs *args = (struct ThreadArgs *)malloc(sizeof(struct ThreadArgs));
+            ThreadArgs *args = (ThreadArgs *)malloc(sizeof(ThreadArgs));
             args->client_addr = client_addr;
             args->client_addr_len = client_addr_len;
             pthread_t tid;

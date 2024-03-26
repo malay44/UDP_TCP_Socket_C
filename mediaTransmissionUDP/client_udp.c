@@ -72,7 +72,18 @@ int main(int argc, char *argv[])
     printf("Client will get data from to %s:%d.\n", argv[1], SERVER_PORT);
     printf("To play the music, pipe the download file to a player, e.g., ALSA, SOX, VLC: cat recvd_file.wav | vlc -\n");
 
-    /* send message to server */
+    /* send fileRequest message to server */
+    FileRequest fileRequest;
+    fileRequest.type = FILE_REQUEST;
+    fileRequest.filename_size = strlen(filename);
+    strcpy(fileRequest.filename, filename);
+    if (sendto(s, (FileRequest *)&fileRequest, sizeof(fileRequest), 0, (struct sockaddr *)&sin, sizeof(sin)) < 0)
+    {
+        perror("Client: sendto()");
+        return 0;
+    }
+
+    // old code to send string from stdin
     fgets(buf, sizeof(buf), stdin);
     buf[BUF_SIZE - 1] = '\0';
     len = strlen(buf) + 1;
@@ -81,14 +92,7 @@ int main(int argc, char *argv[])
         perror("Client: sendto()");
         return 0;
     }
-
-    /* get reply, display it or store in a file*/
-    /* Add code to receive unlimited data and either display the data
-       or if specified by the user, store it in the specified file.
-       Instead of recv(), use recvfrom() call for receiving data */
-    // // print message from server
-    // recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr *)&sin, &len);
-    // printf("Server says: %s\n", buf);
+    
     ssize_t size_received = 0;
     socklen_t sin_len = sizeof(sin);
     while (1)

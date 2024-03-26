@@ -5,6 +5,7 @@
 
 #define SERVER_PORT 5432
 #define BUF_SIZE 4096
+#define DEBUG 1 
 
 enum
 {
