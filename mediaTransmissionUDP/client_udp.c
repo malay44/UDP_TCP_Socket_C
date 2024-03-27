@@ -13,12 +13,15 @@
 #include <netdb.h>
 #include "constants.h"
 
+void sendACK(int s, struct sockaddr_in sin, uint16_t sequence_no);
+
 int main(int argc, char *argv[])
 {
 
     FILE *fp;
     struct hostent *hp;
     struct sockaddr_in sin;
+    socklen_t sin_len = sizeof(sin);
     char *host;
     char *filename;
     char buf[BUF_SIZE];
@@ -38,12 +41,6 @@ int main(int argc, char *argv[])
     if (argc == 3)
     {
         filename = argv[2];
-        fp = fopen(filename, "wb");
-        if (fp == NULL)
-        {
-            fprintf(stderr, "Error opening output file\n");
-            exit(1);
-        }
     }
 
     /* translate host name into peer's IP address */
@@ -83,6 +80,75 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    while (1)
+    {
+        // receive file info and data or file not found message
+
+        ssize_t recvLen = recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr *)&sin, &sin_len);
+        if (recvLen < 0)
+        {
+            perror("recvfrom");
+            exit(1);
+        }
+        FileNotFound *fileNotFound;
+        FileInfoAndData *fileInfoAndData;
+        Data *data;
+
+        switch (buf[0])
+        {
+        case FILE_NOT_FOUND:
+            fileNotFound = (FileNotFound *)buf;
+            printf("File not found: %s\n", fileNotFound->filename);
+            close(s);
+            return 0;
+            break;
+
+        case FILE_INFO_AND_DATA:
+            fileInfoAndData = (FileInfoAndData *)buf;
+            if (DEBUG)
+            {
+                printf("File info and data received.\n");
+                printf("Type: %d\n", fileInfoAndData->type);
+                printf("Sequence number: %d\n", (ntohs(fileInfoAndData->sequence_number)));
+                printf("Filename size: %d\n", fileInfoAndData->filename_size);
+                printf("Filename: %s\n", fileInfoAndData->filename);
+                printf("File size: %d\n", ntohl(fileInfoAndData->file_size));
+                printf("Block size: %d\n", fileInfoAndData->block_size);
+                printf("Data: %s\n", fileInfoAndData->data);
+            }
+            sendACK(s, sin, fileInfoAndData->sequence_number);
+            char filePath[255 + 15];
+            strcpy(filePath, "downloads/");
+            strcat(filePath, fileInfoAndData->filename);
+            fp = fopen(filePath, "wb");
+            if (fp == NULL)
+            {
+                perror("Error opening file");
+                close(s);
+                return 0;
+            }
+            fwrite(fileInfoAndData->data, 1, fileInfoAndData->block_size, fp);
+            fflush(fp);
+            break;
+
+        case DATA:
+            data = (Data *)buf;
+            if (DEBUG)
+            {
+                printf("Data received.\n");
+                printf("Type: %d\n", data->type);
+                printf("Sequence number: %d\n", data->sequence_number);
+                printf("Block size: %d\n", data->block_size);
+                printf("Data: %s\n", data->data);
+            }
+            sendACK(s, sin, data->sequence_number);
+            fwrite(data->data, 1, data->block_size, fp);
+            break;
+        default:
+            break;
+        }
+    }
+
     // old code to send string from stdin
     fgets(buf, sizeof(buf), stdin);
     buf[BUF_SIZE - 1] = '\0';
@@ -92,9 +158,8 @@ int main(int argc, char *argv[])
         perror("Client: sendto()");
         return 0;
     }
-    
+
     ssize_t size_received = 0;
-    socklen_t sin_len = sizeof(sin);
     while (1)
     {
         ssize_t recvLen = recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr *)&sin, &sin_len);
@@ -116,4 +181,17 @@ int main(int argc, char *argv[])
     fclose(fp);
     close(s);
     return 0;
+}
+
+void sendACK(int s, struct sockaddr_in sin, uint16_t sequence_no)
+{
+    Ack ack;
+    ack.type = ACK;
+    ack.num_sequences = 1; // for positive ack only
+    ack.sequence_no[0] = sequence_no;
+    if (sendto(s, (Ack *)&ack, sizeof(ack), 0, (struct sockaddr *)&sin, sizeof(sin)) < 0)
+    {
+        perror("Client: sendto()");
+        return;
+    }
 }

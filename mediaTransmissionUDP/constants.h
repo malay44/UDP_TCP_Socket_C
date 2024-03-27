@@ -5,7 +5,7 @@
 
 #define SERVER_PORT 5432
 #define BUF_SIZE 4096
-#define DEBUG 1 
+#define DEBUG 1
 
 enum
 {
@@ -38,19 +38,19 @@ typedef struct {
     uint32_t file_size;
     uint16_t block_size;
     char data[BUF_SIZE - 1 - 2 - 1 - 255 - 4 - 2];
-} FileInfoAndDataPacket;
+} FileInfoAndData;
 
 typedef struct {
     uint8_t type;
     uint16_t sequence_number;
     uint16_t block_size;
     char data[BUF_SIZE - 1 - 2 - 2];
-} DataPacket;
+} Data;
 
 typedef struct {
     uint8_t type;
     uint8_t filename_size;
     char filename[255];
-} FileNotFoundPacket;
+} FileNotFound;
 
 #endif /* CONSTANTS_H */

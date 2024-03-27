@@ -20,18 +20,23 @@ typedef struct
 {
     struct sockaddr_storage client_addr;
     socklen_t client_addr_len;
+    FileRequest fileRequest;
 } ThreadArgs;
 
 void *handle_client(void *arg)
 {
+    // Variable declarations
+    char clientIP[INET_ADDRSTRLEN];
+    int client_socket;
+    char recvBuf[BUF_SIZE];
+
+    // Extract the arguments
     ThreadArgs *args = (ThreadArgs *)arg;
     struct sockaddr_storage client_addr = args->client_addr;
     socklen_t client_addr_len = args->client_addr_len;
+    FileRequest fileRequest = args->fileRequest;
 
-    char clientIP[INET_ADDRSTRLEN];
-    int client_socket;
-    char buf[BUF_SIZE];
-
+    // Parse the binary IP address to a human-readable form
     inet_ntop(client_addr.ss_family,
               &(((struct sockaddr_in *)&client_addr)->sin_addr),
               clientIP, INET_ADDRSTRLEN);
@@ -46,24 +51,48 @@ void *handle_client(void *arg)
 
     printf("Server %d: Sending file to client\n", pthread_self());
     size_t bytes_read;
-    FILE *fp = fopen("streamable.mp4", "rb");
+    printf("Server %d: Opening file %s\n", pthread_self(), fileRequest.filename);
+    FILE *fp = fopen(fileRequest.filename, "rb");
     if (fp == NULL)
     {
+        FileNotFound fileNotFound;
+        fileNotFound.type = FILE_NOT_FOUND;
+        fileNotFound.filename_size = strlen(fileRequest.filename);
+        strcpy(fileNotFound.filename, fileRequest.filename);
+        sendto(client_socket, (FileNotFound *)&fileNotFound, sizeof(fileNotFound), 0, (struct sockaddr *)&client_addr, client_addr_len);
         perror("Error opening file");
-        exit(1);
+        close(client_socket);
+        return NULL;
     }
-    ssize_t size_sent = 0;
-    while ((bytes_read = fread(buf, 1, sizeof(buf), fp)) > 0)
-    {
-        usleep(300);
-        sendto(client_socket, buf, bytes_read, 0, (struct sockaddr *)&client_addr, client_addr_len);
-        size_sent += bytes_read;
-        printf("Server %d: Sent %ld bytes\r", pthread_self(), size_sent);
-    }
-    printf("Server %d: File sent of size: %ld\n", pthread_self(), size_sent);
+    FileInfoAndData fileInfoAndData;
+    fileInfoAndData.type = FILE_INFO_AND_DATA;
+    if(DEBUG) printf("Server %d: Sending file info and data\n", pthread_self());
+    fileInfoAndData.sequence_number = htons(353434); // Random number
+    if(DEBUG) printf("Server %d: Sequence number: %d\n", pthread_self(), 353434);
+    fileInfoAndData.filename_size = strlen(fileRequest.filename);
+    strcpy(fileInfoAndData.filename, fileRequest.filename);
+    fseek(fp, 0L, SEEK_END);
+    if(DEBUG) printf("Server %d: File size: %ld\n", pthread_self(), ftell(fp));
+    fileInfoAndData.file_size = htonl(ftell(fp));
+    fseek(fp, 0L, SEEK_SET);
+    bytes_read = fread(fileInfoAndData.data, 1, sizeof(fileInfoAndData.data), fp);
+    fileInfoAndData.block_size = bytes_read;
+    sendto(client_socket, (FileInfoAndData *)&fileInfoAndData, sizeof(fileInfoAndData), 0, (struct sockaddr *)&client_addr, client_addr_len);
+    
+
+    // old code
+    // ssize_t size_sent = 0;
+    // while ((bytes_read = fread(recvBuf, 1, sizeof(recvBuf), fp)) > 0)
+    // {
+    //     usleep(300);
+    //     sendto(client_socket, recvBuf, bytes_read, 0, (struct sockaddr *)&client_addr, client_addr_len);
+    //     size_sent += bytes_read;
+    //     printf("Server %d: Sent %ld bytes\r", pthread_self(), size_sent);
+    // }
+    // printf("Server %d: File sent of size: %ld\n", pthread_self(), size_sent);
     fclose(fp);
     close(client_socket);
-    memset(buf, 0, sizeof(buf));
+    memset(recvBuf, 0, sizeof(recvBuf));
 }
 
 int main(int argc, char *argv[])
@@ -145,25 +174,19 @@ int main(int argc, char *argv[])
             printf("Server: fileRequest->filename: %s\n", fileRequest->filename);
         }
 
-        // old code
-        if (strcmp(buf, "GET\n") == 0)
-        {
-            int s = socket(AF_INET, SOCK_DGRAM, 0);
-            ThreadArgs *args = (ThreadArgs *)malloc(sizeof(ThreadArgs));
-            args->client_addr = client_addr;
-            args->client_addr_len = client_addr_len;
-            pthread_t tid;
-            if (pthread_create(&tid, NULL, handle_client, (void *)args) != 0)
-            {
-                perror("pthread_create");
-                exit(1);
-            }
-            pthread_detach(tid);
-        }
-        else
-        {
-            printf("Server: Invalid request\n");
-        }
+        ThreadArgs *args = (ThreadArgs *)malloc(sizeof(ThreadArgs));
+        args->client_addr = client_addr;
+        args->client_addr_len = client_addr_len;
+        args->fileRequest = *fileRequest;
+        handle_client((void *)args);
+        // pthread_t tid;
+        // if (pthread_create(&tid, NULL, handle_client, (void *)args) != 0)
+        // {
+        //     perror("pthread_create");
+        //     exit(1);
+        // }
+        // pthread_detach(tid);
+        free(args);
         memset(buf, 0, sizeof(buf));
     }
 }
